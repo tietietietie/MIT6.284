@@ -85,3 +85,93 @@ MapReduce: Job = MapTasks + Reduce Tasks
 可以使用流来优化reduce，而不是必须等待全部数据收集完成，才执行reduce函数
 
 reduce的输出文件也是放在GFS上（也会消耗带宽）
+
+## Lab1:MapReduce
+
+### mcsequential.go
+
+* 定义ByKey用来排序“中间键值对”
+* 定义loadPlugin()函数来读取os.Args[1]中的map函数和reduce函数
+* 程序执行流程
+  * 打开文件，将文件名和文件内容（都是字符串），传入map函数中，产生kva键值对，将每个文件产生的kva都添加到中间键值对中。（类似于"apple" : "1", "banana" : 1, "apple" : "1")
+  * 将中间键值对按照ByKey排序，并指定一个output文件。os.Create(oname)
+  * 将排序后的中间键值对去重，得到每一个key和对应的values，类似于("apple" : "1", "1")，并传入reduce函数中，reduce函数统计每个key出现的次数，输出output（“2”）。
+  * 最后程序将（key, output）写入文件。
+
+### mrmaster
+
+* 传入master所需要的文件（多个）以及reduce个数
+
+```go
+m := mr.MakeMaster(os.Args[1:], 10)
+```
+
+* 利用master的Done函数，每隔一秒检查worker是否全部完成
+
+```go
+for m.Done() == false {
+    time.Sleep(time.Second)
+}
+```
+
+### mrworker
+
+* 传入map函数和reduce函数，创建worker
+
+```go
+mapf, reducef := loadPlugin(os.Args[1])
+mr.Worker(mapf, reducef)
+```
+
+### master
+
+* 定义Master结构体（my code）
+* 定义RPC handler来处理worker的请求
+* 定义一个server，启动net.listen，注册rpc服务，来处理所有rpc请求
+* 定义一个makeMaster，用来创建master进程（my code)
+
+### rpc
+
+* 定义rpc变量，注意要全部大写开头(my code)
+
+### worker
+
+* KeyValue结构体，存放key 和 value 都是 string
+* ihash:根据key，产生一个int，用来指派reduce
+* 定义Worker函数，传入mapf和reducef两个函数，(mycode)
+* 定义call函数，可以向master通过rpc发送信息
+
+## lecture 2: infra : RPC and threads
+
+### Go语言
+
+为什么使用Go：
+
+* 对线程，锁，同步，RPC的使用很容易
+* 垃圾回收语言，内存自动回收，多线程的内存回收很重要，因为共享对象的回收需要所有线程使用完成
+* 简单
+
+### 线程
+
+I/O并发：统一时间段，如果某一个I/O活动正在等待，则可以允许其他I/O活动
+
+ 并行：如果启动多个GoRoutine，多核处理器能够同时处理
+
+方便：比如周期性的检查
+
+如果没有并发，可以用事件驱动编程？？（通常用一个循环）（有一个事件表）（这是线性的，写起来很麻烦）（无法使用多核）
+
+线程的数据交互比进程容易的多
+
+挑战：
+
+共享的数据容易出错：竞争  解决办法：加锁 （锁和变量是没有任何关系的。）
+
+协作：使用channel， sync.Cond, waitGroup
+
+死锁：互相等待对方解锁
+
+### Web爬虫
+
+
+
