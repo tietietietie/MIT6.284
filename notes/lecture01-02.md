@@ -173,5 +173,13 @@ I/O并发：统一时间段，如果某一个I/O活动正在等待，则可以�
 
 ### Web爬虫
 
+三种方式：串行/共享数据/channel
 
+共享数据：防止两个Go线程同时访问同一个url，并把fetched[url]设置为true两次
+
+```go
+func ConcurrentMutex(url string, fetcher Fetcher, f *fetchState) 
+```
+
+此处对我们定义的结构fetchstate，需要用一个指针指向，但是对于Go语言自带的数据结构map，却不用指针，因为map本身就是一个指针
 
