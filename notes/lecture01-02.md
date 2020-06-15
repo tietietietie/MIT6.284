@@ -183,3 +183,27 @@ func ConcurrentMutex(url string, fetcher Fetcher, f *fetchState)
 
 此处对我们定义的结构fetchstate，需要用一个指针指向，但是对于Go语言自带的数据结构map，却不用指针，因为map本身就是一个指针
 
+### RPC
+
+远程程序调用（remote procedure call)，非常方便的C-S通讯机制，隐藏网络协议的细节，进行各种数据的传输。
+
+一般定义三个部分：
+
+common:声明变量和返回体
+
+client：
+
+* Dial:使用TCP连接服务器
+* Call:请求调用服务器的函数（使用RPC库）
+
+Server
+
+首先定义一个函数（方法），然后将这个方法在RPC库中注册，之后server允许TCP连接。
+
+对于RPC库，能够读取每一个请求，并为每个请求创建一个goroutine，解组请求（unmarshalls request），查找对应的处理函数，并将这个请求分派给这个函数（对象），组装请求（marshall request)，最后将请求写入TCP连接
+
+错误处理：
+
+如果如何知道一个请求发送失败了呢？使用best effort策略，如果一段事件没有得到响应，尝试了多次后，自动放弃并报错。
+
+如果client多次发送统一请求
