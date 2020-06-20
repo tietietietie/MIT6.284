@@ -99,13 +99,71 @@ sudo rm /var/lib/dpkg/lock-frontend
 
 ## 3，MapReduce实现
 
-### 数据结构定义
+### 数据结构定义/函数功能介绍/文件功能介绍
 
-#### Task
+#### Task （Struct）
 
-包括：taskType, filaName, taskId（非常重要，在执行map任务时，取值为(0~n-1)能帮助我们确定中间键文件名称，在执行reduce任务时（取值0~m-1)，能帮助我们找到所需的中间值文件），mapCount， reduceCount。
+包括：taskType, filaName, taskId（非常重要，在执行map任务时，取值为(0~n-1)能帮助我们确定中间键文件名称，在执行reduce任务时（取值0~m-1)，能帮助我们找到所需的中间值文件），mapCount(执行reduceFunction要用）， reduceCount（执行mapFunction的时候要用）workerID(因为可能出现两个worker执行相同任务的情况，此时任务是否完成，应该以master中任务的workerID确定）。
 
-#### Worker
+#### TaskState (Struct)
 
-申请任务 ---> 判断任务类型 ---> 执行对应任务 --- > 通知master执行的状态  ---> 申请任务
+包括：任务状态：入队？超时？错误？已完成？（0，1，2，3）
+
+任务执行ID：workerID
+
+任务开始执行时间
+
+#### Worker.go
+
+作用：申请/执行任务
+
+worker结构体：包括mapF和reduceF, ID
+
+申请WorkerID ---> 申请任务 ---> 判断任务类型 ---> 执行对应任务 --- > 通知master执行的状态  ---> 申请任务
+
+#### Master.go
+
+作用：调度/分配任务
+
+1, 每个一段时间，检查所有任务的状态：包括判断所有任务已完成？将执行太久的任务/报错的任务重新放入准备任务队列
+
+​	1）如果map任务全部完成，则启动reduce任务
+
+​	2）如果reduce任务全部完成，则将Done参数设置为true
+
+2，Master结构体：存放着所有需要共享的变量，包括：master当前管理的任务类型（map/reduce），所有任务的状态（入队？已完成？在执行？故障？）（用一个数组存储，index是TaskId(0~n-1, 0~m-1)， value是taskState，四种），Done：表示全部任务（map and reduce）已完成，files(输入文件)， nReduece(切片数量)， 互斥锁。
+
+3，执行过程：启动所有map任务（入队） ---> 将管道中的任务分配给woker ---> 每隔一定时间检查所有任务状态，处理超时/失败任务，重新入队，如果已完成 ---> 启动所有的reduce任务 ---> 将管道中的任务分配给worker --->一定时间检查任务状态，如何任务全部完成  ---> Done = true
+
+4，分配任务：收到任务请求（RPC) ---> 在管道中获取任务 ---> 处理任务（包括确定此任务workerID，改变任务状态，确定此任务的开始时间） --->  将任务分配给worker
+
+5，标记任务完成：收到任务完成请求 ---> 判断当前m.taskPhase和args.taskPhase是否对应，workerId是否对应（因为可能有非常慢的worker） ---> 标记任务状态为已完成
+
+### 代码
+
+#### 初始化map任务
+
+将Master结构初始化，确定files和nReduce，并且开启Map任务
+
+#### 请求任务
+
+#### 注册Worker
+
+#### 报告任务完成
+
+args: 任务类型， 任务ID， 是否完成， workerID
+
+将master的任务标记为已完成，需要满足：任务类型和当前Master处理的任务类型一致，workerID与master中的任务状态的workerID一致，并且报告的是已完成
+
+#### 执行map任务
+
+mapf(args1, args2) : args1 : fileName, args2 : content， res : key-value数组
+
+将key/value数组分成nReduce份，分别存储在mr-X-Y名称的文件中
+
+#### 执行reduce任务
+
+reduce()
+
+读取所有的中间键值对文件，全部存入一个地方（kva） --->  将相同的key聚合在一起（map)（key, values) ---> 对每个key进行reduce操作
 
