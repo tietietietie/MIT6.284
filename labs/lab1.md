@@ -1,5 +1,7 @@
 # lab1
 
+实验环境：WSL:Ubuntu 18.04  + VsCode
+
 ## 1，理解题意
 
 阅读提供的代码，理解功能
@@ -147,7 +149,31 @@ worker结构体：包括mapF和reduceF, ID
 
 #### 请求任务
 
+```go
+func (w *worker) requestTask() Task {
+	args := RequestTaskArgs{}
+	args.WorkerID = w.workerID
+	reply := RequestTaskReply{}
+	if ok := call("Master.AssignOneTask", &args, &reply); !ok {
+		log.Println("worker %d cannot request a task", w.workerID)
+		os.Exit(1)
+	}
+	return *reply.Task
+}
+```
+
+worker在请求任务中，需要判断ok的值，不然worker永远无法退出？或者连接超时？反正有Bug，无法通过。
+
 #### 注册Worker
+
+```go
+func (w *worker) register() {
+	args := RegisterArgs{}
+	reply := RegisterReply{}
+	call("Master.RegisterWorker", &args, &reply)
+	w.workerID = reply.WorkerID
+}
+```
 
 #### 报告任务完成
 
@@ -167,3 +193,93 @@ reduce()
 
 读取所有的中间键值对文件，全部存入一个地方（kva） --->  将相同的key聚合在一起（map)（key, values) ---> 对每个key进行reduce操作
 
+将reduece结果整理到res中，并统一写入到mr-out-*文件中，一行行的写入是有问题的，不知道为啥
+
+正确代码：
+
+```go
+func (w *worker) execReduceTask(task Task) {
+	maps := make(map[string][]string)
+	for idx := 0; idx < task.MapCount; idx++ {
+		fileName := fmt.Sprintf("mr-%d-%d", idx, task.ID)
+		file, err := os.Open(fileName)
+		if err != nil {
+			w.reportTask(task, false)
+			return
+		}
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				break
+			}
+			if _, ok := maps[kv.Key]; !ok {
+				maps[kv.Key] = make([]string, 0, 100)
+			}
+			maps[kv.Key] = append(maps[kv.Key], kv.Value)
+		}
+	}
+	//指定slice的长度和容量
+	res := make([]string, 0, 100)
+	for k, v := range maps {
+		res = append(res, fmt.Sprintf("%v %v\n", k, w.reducef(k, v)))
+	}
+
+	if err := ioutil.WriteFile(fmt.Sprintf("mr-out-%d", task.ID), []byte(strings.Join(res, "")), 0666); err != nil {
+		w.reportTask(task, false)
+	}
+
+	w.reportTask(task, true)
+}
+```
+
+有BUG的代码
+
+```java
+kvs := make(map[string][]string)
+for i := 0; i < task.MapCount; i++ {
+	fileName := fmt.Sprintf("mr-%d-%d", i, task.ID)
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatalf("cannot open reduceFile %v", fileName)
+		w.reportTask(task, false)
+		return
+	}
+	dec := json.NewDecoder(file)
+	for {
+		var kv KeyValue
+		err := dec.Decode(&kv)
+		if err != nil {
+			break
+		}
+		//判断key是否存在于kvs
+		if _, ok := kvs[kv.Key]; !ok {
+			kvs[kv.Key] = make([]string, 0)
+		}
+		kvs[kv.Key] = append(kvs[kv.Key], kv.Value)
+	}
+}
+//将reduce结果存入文件
+fileName := fmt.Sprintf("mr-out-%d", task.ID)
+file, err := os.Create(fileName)
+if err != nil {
+	log.Fatalf("cannot create %v", fileName)
+	w.reportTask(task, false)
+}
+for key, values := range kvs {
+	_, err := file.WriteString(fmt.Sprintf("%v %v/n", key, w.reducef(key, values)))
+	if err != nil {
+		log.Fatalf("cannot write string in %v", fileName)
+		w.reportTask(task, false)
+	}
+}
+w.reportTask(task, true)
+```
+
+### 测试结果
+
+> sh test-mr.sh	
+
+通过所有测试，但是会有：Unexpected EOF提示。
+
+![image-20200623101852199](lab1.assets/image-20200623101852199.png)
