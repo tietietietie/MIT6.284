@@ -42,8 +42,67 @@
 * 缺点
   * 可能会造成“热点”chunk server
 
-#### 源数据
+#### 元数据
 
 分为三类：文件名/chunk名称，file < --- >chunk映射，chunk及副本存放位置，前两者会有log保存在本地和远程，chunk存放位置不用保存，master启动时，chunk server会主动发送。
 
 * 操作日志：保存着元数据的修改信息，非常重要，保留多分，用于master复原，为了节省复原时间，设置了checkpoint，定期总结。
+* 元数据修改前必须前保存日志。
+
+
+
+## Video：[深入浅出Google File System](https://www.youtube.com/watch?v=WLad7CCexo8)
+
+### 如何保存文件
+
+#### 保存大文件（单机）：
+
+![image-20200629165005707](Lecture03-04.assets/image-20200629165005707.png)
+
+#### 保存超大文件（分布式）
+
+**如何降低master中的元数据信息，以及减少master的通讯**：
+
+master不会保存磁盘的偏移量，只需要保存chunk所对应的chunkserver，在chunkserver中，再查找磁盘的偏移量即可。
+
+### 数据损坏
+
+#### 发现数据损坏
+
+每个blcok中保存一个checksum，进行校验。每次读取都进行hash校验
+
+#### 减少数据损坏的损失
+
+创建副本（三个）
+
+如何选择副本的chunkserver：硬盘使用率低，跨机架跨数据中心
+
+#### 如何恢复损坏的chunk
+
+chunkserver想master求助，找到副本的位置
+
+### Chunkserver挂掉
+
+#### 如何发现
+
+心跳，周期性的向master发送信息。
+
+#### 如何恢复
+
+master启动修复进程，根据剩余chunk的多少进行优先级排序。chunk副本越少，越先进行修复
+
+### 热点
+
+热点平衡进程：记录访问频率，带宽等，如果某个server访问过多，创建多个副本server
+
+### 如何读文件
+
+![image-20200629170225216](Lecture03-04.assets/image-20200629170225216.png)
+
+### 如何写文件
+
+注意primary是写的时候临时指定的。
+
+注意先缓存再写入硬盘（防止出错）
+
+![image-20200629170616555](Lecture03-04.assets/image-20200629170616555.png)
