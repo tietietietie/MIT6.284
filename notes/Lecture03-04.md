@@ -166,3 +166,64 @@ master启动修复进程，根据剩余chunk的多少进行优先级排序。chu
 注意先缓存再写入硬盘（防止出错）
 
 ![image-20200629170616555](Lecture03-04.assets/image-20200629170616555.png)
+
+## Video: GFS
+
+大型分布式存储系统：在分布式系统中，设计分布式存储系统非常重要，因为需要系统的分布式系统，其运行基于分布式存储。
+
+目标：设计一个简洁的存储系统接口，以及设计一个性能良好的内部结构。
+
+难点：高性能 ---> 需要分片数据在多台服务器上并行读取 ---> 多台服务器会经常出错 ---> 需要容错机制 ---> 容错机制的解决办法是副本 ---> 副本可能会造成数据不一致 ---> 为了保证一致性，可能会造成低性能
+
+强一致性：系统像运行在单一服务器一样 （但是单一服务器也有一致性问题：比如两请求同时修改同一变量的值）
+
+副本会导致强一致性难以保证
+
+![image-20200702161919152](Lecture03-04.assets/image-20200702161919152.png)
+
+可以发现，如果没有对请求执行顺序做规定的话，s1和s2的数据不能保证一致
+
+### GFS
+
+Master：有两张表：1) : fileName < --- > chunkID(chunkeHandles)（nv） 2): chunkHandle <---> list of chunkservers(v)/version(nv)/primary chunk(v)/ primary chunk的过期时间（lease time)(v)
+
+每次修改上述信息，master都会以log的形式，在磁盘上保存（追加），并建立check point。注意nv即非易失性的数据，保存在磁盘中，而易失性数据，不需要以日志性质追加。
+
+原因：chunkserver可以通过与master通信，告诉其磁盘存放着哪些chunk,而primary chunk也不需要保存，Master等待一段时间（60s）后，lease已经失效，此时再安全的指定一个新的primary chunk即可。
+
+如何client需要的数据跨过了多个chunk，GFS library会把此次请求分为多次？发送给Master？
+
+如何保证一致性：
+
+如何处理错误：
+
+如何读取/
+
+如何写入：
+
+* 如果没有指定primary
+  * 保证是最新的副本：比较master上保存的版本号和chunk server上的版本号。（不能以master收到的chunk server发来的版本号的最大值作为最新版本，因为存储着最新版本的chunk server可能重启较慢）
+  * 确定一个primary和secondary （lease)(为了防止挂掉的primary过了一段时间重启，导致有两个Primary)
+  * 增加版本号
+  * 告诉用户primary secondary, 版本号，以及chunk所在位置
+* 用户已知P和S后，将数据传到P和S的临时区域（内存？）
+* 数据传输完成后，client告诉Primary可以把数据存到硬盘了
+* primary把数据存到硬盘，并确定写入的偏移量，并告诉所有的secondary从该位置开始写数据
+  * 如果所有secondary返回yes，则此次操作成功
+  * 否则，告诉client写入失败，client重新跟master请求写入
+
+脑裂(split brain) :由于master无法与primary通信（网络故障），此时master认为primary已经故障，重新指派了新的primary，但实际上旧的primary还在和secondary以及client正常通信，此时系统中将产生两个primary
+
+版本号只有在指定新的primary的时候，才会更新
+
+Lease会避免脑裂情况，因为master会等待旧Primary过期，才会指派新的primary
+
+![image-20200703105141433](Lecture03-04.assets/image-20200703105141433.png)
+
+这种模型下，会出现每个副本的chunk顺序是不同的
+
+升级为强一致性：
+
+* 重复性检测（primary检测如果出现了两次B）
+* 如果某一个secondary写入失败，可以考虑将其永久的移出系统，从而保证所有的secondary是成功的，保证每次写入是成功的
+* 两阶段提交：P首先确认所有S能够正常写入所需数据，得到所有的肯定答复后，再对S进行写入。
