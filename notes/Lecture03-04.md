@@ -1,6 +1,6 @@
-# Lecture03-04
+# Lecture03
 
-## Paper:GFS
+## Paper: GFS
 
 ### 绪论
 
@@ -38,7 +38,7 @@
 * 选择64MB，优点如下
   * 减少与master的交互，并能轻松的缓存chunk位置
   * 能够减少带宽消耗
-  * 减少元数据的数据量，是我们能够把元数据保存在内存中
+  * 减少元数据的数据量，使我们能够把元数据保存在内存中
 * 缺点
   * 可能会造成“热点”chunk server
 
@@ -46,7 +46,7 @@
 
 分为三类：文件名/chunk名称，file < --- >chunk映射，chunk及副本存放位置，前两者会有log保存在本地和远程，chunk存放位置不用保存，master启动时，chunk server会主动发送。
 
-* 操作日志：保存着元数据的修改信息，非常重要，保留多分，用于master复原，为了节省复原时间，设置了checkpoint，定期总结。
+* 操作日志：保存着元数据的修改信息，非常重要，保留多份，用于master复原，为了节省复原时间，设置了checkpoint，定期总结。
 * 元数据修改前必须前保存日志。
 
 ### GFS集群操作流程
@@ -72,7 +72,7 @@
 
 1. 客户端向 Master 询问目前哪个 Chunk Server 持有该 Chunk 的 Lease
 2. Master 向客户端返回 Primary 和其他 Replica 的位置
-3. 客户端将数据推送到所有的 Replica 上。Chunk Server 会把这些数据保存在缓冲区中，等待使用
+3. 客户端将数据推送到所有的 Replica 上（从近到远）。Chunk Server 会把这些数据保存在缓冲区中，等待使用
 4. 待所有 Replica 都接收到数据后，客户端发送写请求给 Primary。Primary 为来自各个客户端的修改操作安排连续的执行序列号，并按顺序地应用于其本地存储的数据
 5. Primary 将写请求转发给其他 Secondary Replica，Replica 们按照相同的顺序应用这些修改
 6. Secondary Replica 响应 Primary，示意自己已经完成操作
@@ -86,7 +86,7 @@
 
 采用延迟删除策略，首先namespace中的文件不会马上移除，进行重命名即可，经过一定时间后在进行删除。
 
-NameSpace文件被删除后，其对应的chunk的引用计数减1，当某一chunk的引用为0，则master将该chunk的元数据在内存中全部删除。chunk server根据心跳通信，汇报自己的chunk副本，如果这个chunk不存在，chunk server**自行移除**对应的副本
+NameSpace文件被删除后，其对应的chunk的引用计数减1**，当某一chunk的引用为0**，则master将该chunk的元数据在内存中全部删除。chunk server根据心跳通信，汇报自己的chunk副本，如果这个chunk不存在，chunk server**自行移除**对应的副本
 
 ### 高可用机制
 
@@ -123,7 +123,7 @@ NameSpace文件被删除后，其对应的chunk的引用计数减1，当某一ch
 
 **如何降低master中的元数据信息，以及减少master的通讯**：
 
-master不会保存磁盘的偏移量，只需要保存chunk所对应的chunkserver，在chunkserver中，再查找磁盘的偏移量即可。
+master**不会保存磁盘的偏移量**，只需要保存chunk所对应的chunkserver，在chunkserver中，再查找磁盘的偏移量即可。
 
 ### 数据损坏
 
@@ -227,3 +227,33 @@ Lease会避免脑裂情况，因为master会等待旧Primary过期，才会指�
 * 重复性检测（primary检测如果出现了两次B）
 * 如果某一个secondary写入失败，可以考虑将其永久的移出系统，从而保证所有的secondary是成功的，保证每次写入是成功的
 * 两阶段提交：P首先确认所有S能够正常写入所需数据，得到所有的肯定答复后，再对S进行写入。
+
+# Lecuture04
+
+### Paper:The Design of a Practical System for Fault-Tolerant Virtual Machines
+
+#### 概述
+
+目的：通过对primary进行备份，实现容错，其中备份(backup)完全复制primary。
+
+同步方式：在确定状态机(deterministic state machine)之间传递确定操作（deterministic operation）以及非确定操作的结果（non-deterministic operation's result；），因为所有状态机的初始状态相同，从而执行相同操作后，所处状态是相同的。
+
+使用VM的原因：VM正好可以被看做是一个well-defined state machine whose operations are the operations of the machine being vertualized. —— VM的hypervisor可以将所有operation 捕捉下来，并且很方便地在另一个VM上replay
+
+系统架构：VM运行在两个不同的物理机上，通过logging channel来传输数据保持同步，并且共享存储，对于外部仅primary可见，通过heartbeat和channel监控来确定是否存活
+
+![image-20200716195226082](C:\Users\zhang\AppData\Roaming\Typora\typora-user-images\image-20200716195226082.png)
+
+确定操作重播的实现（deterministic replay implementation）：VM所记录的operation包括：1）deterministic events / operations: incoming network packets, disk reads, input from keyboard & mouse。2）non-deterministic events / operations: virtual interrupts, reading the clock cycle counter of the processor... 把这些指令都记录在log中，通过log，一个VM所有的操作都能完美复现。（具体信息见DRI论文）
+
+确认脑裂：当一个VM要go live时，先在shared storage上进行"atomic test-and-set"动作；
+
+实现细节：
+
+* log传输时primary和backup都有buffer，通过buffer,primary能够把log快速发送出去，而backup可以立即响应ack
+* I/O
+* 非共享硬盘时怎么处理？
+* back在shared disk上是否亲自读数据？
+  * 优点：能够减少channel的负载
+  * 缺点：降低backup效率，需要等待primary，需要容错，需要解决冲突
+
