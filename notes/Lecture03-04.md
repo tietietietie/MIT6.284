@@ -236,7 +236,7 @@ Lease会避免脑裂情况，因为master会等待旧Primary过期，才会指�
 
 目的：通过对primary进行备份，实现容错，其中备份(backup)完全复制primary。
 
-同步方式：在确定状态机(deterministic state machine)之间传递确定操作（deterministic operation）以及非确定操作的结果（non-deterministic operation's result；），因为所有状态机的初始状态相同，从而执行相同操作后，所处状态是相同的。
+同步方式：在**确定状态机**(deterministic state machine)之间传递确定操作（deterministic operation）以及非确定操作的结果（non-deterministic operation's result；），因为所有状态机的初始状态相同，从而执行相同操作后，所处状态是相同的。
 
 使用VM的原因：VM正好可以被看做是一个well-defined state machine whose operations are the operations of the machine being vertualized. —— VM的hypervisor可以将所有operation 捕捉下来，并且很方便地在另一个VM上replay
 
@@ -257,3 +257,56 @@ Lease会避免脑裂情况，因为master会等待旧Primary过期，才会指�
   * 优点：能够减少channel的负载
   * 缺点：降低backup效率，需要等待primary，需要容错，需要解决冲突
 
+#### 摘要
+
+* 该系统运行在虚拟机上，能够以较小的带宽同步主机和副机
+* 详细介绍了主机失效后，副机如何恢复的细节，以及性能指标
+
+#### 绪论
+
+* 基本技术：能够记录primary的操作，并使backup能够按照确定状态执行
+* 传输这些操作需要额外协议
+* 论文结构
+  * 系统的基本设计/传输协议
+  * 构建完整，健壮，自动的系统的一些细节问题
+  * 性能测试
+
+#### 基本容错设计
+
+* 对于外部network来说，只有primary是可见的，所有的input（包括network or keyboard）都只传给primary
+* primary接受到的所有input，通过Log channel传给back up，但是一些非确定的操作，也需要额外传输。
+* back up产生的输出被hypervisor丢弃
+* 特殊的协议：保证primary失效的时候没有信息丢失
+* 心跳检测 + 流量监测 ：检测VM是否存活
+
+##### 确定状态重演的实现
+
+##### FT协议
+
+* 保证primary失效后，back up能够无缝的衔接输出工作，让外界看不出差别。
+* 有时候primary在发送一个output后立即失效，都没来得及生成log entry给back up，此时会造成back up无法产生连续相同的输出，为此指定了output rule，规定primary必须把产生output的log entry发送给back up后，才能向外界输出
+* 只是延迟primary的输出时间，而不是停止primary的执行任务
+* TCP等网络协议可以解决丢包以及重复包的问题
+
+##### 检测故障以及恢复故障
+
+* 使用heartbeating(primary和back up通过UDP发送心跳)， 以及检测log channel的流量，因为log event是按照一定周期发送的，容易检测到故障
+* 可能发生误判并造成脑裂：使用共享磁盘，保证只有一个VM注册位primary
+* 只要发生故障，容错系统自动为新当选的primary恢复一个新的back up
+
+###   Video：Primary-BackUp Replication
+
+Failure stop :如果计算机出错，就当作停止运行，不包括bug或者硬件设计缺陷，因为此时复制不能解决问题。 
+
+复制只能解决 failure stop
+
+ 两种备份思路
+
+* state transfer ： primary传送的是整个state（整个内存信息） 
+* replicated state machine ：primary传送的是外部的operation（因为内部操作绝大部分是确定的函数）（如果两台机器收到的同样的外部指令，按照相同的顺序执行，那么他们最终的状态也是一样的）（内部操作的某些结果也可能是随机的，此时back up会等待primary的结果，并把primary的结果发给软件）
+
+不支持多核处理器，因为多核执行顺序是随机的
+
+什么是状态？
+
+同步需要多紧密？
