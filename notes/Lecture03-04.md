@@ -305,8 +305,28 @@ Failure stop :如果计算机出错，就当作停止运行，不包括bug或者
 * state transfer ： primary传送的是整个state（整个内存信息） 
 * replicated state machine ：primary传送的是外部的operation（因为内部操作绝大部分是确定的函数）（如果两台机器收到的同样的外部指令，按照相同的顺序执行，那么他们最终的状态也是一样的）（内部操作的某些结果也可能是随机的，此时back up会等待primary的结果，并把primary的结果发给软件）
 
-不支持多核处理器，因为多核执行顺序是随机的
+该VM不支持多核处理器，因为多核执行顺序是随机的（VM是可能运行在多核机器上的）
 
-什么是状态？
+什么是状态？底层的**机器**执行状态，非常细节，不像GFS仅针对于应用级
 
-同步需要多紧密？
+同步需要多紧密？（如果不紧密，可能 
+
+虚拟机定义：操作系统运行在VMM（hypervisor）上，而不是直接运行在硬件上。
+
+对于back up产生的output，VMM会产生一个虚拟的NIC来接受（丢弃）   
+
+当back up go live时，它会声明自己的mac地址为primary的mac地址
+
+缺点：这种备份方式代价比较高（复制很底层）
+
+优点：所有软件都能用这种方式实现FT
+
+DMA;直接存储器访问，允许外围硬件通过DMA控制器直接往内存中写入数据，而不用造成CPU太多中断。
+
+input（其实就是数据+中断）的时机必须一样，也就是说必须在同一条指令处引起中断。
+
+为了保证同时中断，log entry保证有instruction number， 以及type（比如是网络数据包，还是wired instruction（随机时间等）的结果） 
+
+使用input entry的大致过程：primary接受到一个数据包 ---> 通过DMA写入到内存 ---> 引发时钟中断 ---> VMM模拟时钟中断 ---> primary的CPU开始处理input，此时VMM记录中断时的cpu instruction number ---> 将instru # + type + data打包为Log entry发送给back up ---> back up 能够根据instruction  number，让CPU在该命令处停止，并模拟出一个时钟中断 ---> CPU开始处理data数据
+
+如何保证back up执行速度总是慢于primary，有一个Buffer来接受log entry，可以保证back up总是落后于primary至少一个指令。
