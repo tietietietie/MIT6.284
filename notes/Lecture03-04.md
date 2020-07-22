@@ -330,3 +330,20 @@ input（其实就是数据+中断）的时机必须一样，也就是说必须�
 使用input entry的大致过程：primary接受到一个数据包 ---> 通过DMA写入到内存 ---> 引发时钟中断 ---> VMM模拟时钟中断 ---> primary的CPU开始处理input，此时VMM记录中断时的cpu instruction number ---> 将instru # + type + data打包为Log entry发送给back up ---> back up 能够根据instruction  number，让CPU在该命令处停止，并模拟出一个时钟中断 ---> CPU开始处理data数据
 
 如何保证back up执行速度总是慢于primary，有一个Buffer来接受log entry，可以保证back up总是落后于primary至少一个指令。
+
+Bounce Buffer : 对于从NIC直接通过DMA写入内存的操作，Primary不会观察到，而是需要VMM模拟，从VMM内存中模拟一次拷贝，并发出中断信号？
+
+log channel中的数据绝大部分是client发来的数据包
+
+不能让primary领先back up太多：必须尽量同步，同步会造成性能下降
+
+primary接受到ACK，可能每个output都会延迟一段时间 
+
+back up可能会重复发送primary的数据包，但是会被TCP丢弃掉。
+
+Primary和back up的物理IP地址是不同的，所以产生的数据包在IP层是不是也是不同的呢？
+
+网络故障导致primary和back up之间无法通信，可能会导致两台机器同时go live（上线），此时发生脑裂。
+
+解决办法：shared memory中的test - and -set技术，类似于内存中有一个flag，如果为0，则设置为1，否则，不用改变。([CAS](https://www.jianshu.com/p/ab2c8fce878b))
+
