@@ -347,3 +347,4 @@ Primary和back up的物理IP地址是不同的，所以产生的数据包在IP�
 
 解决办法：shared memory中的test - and -set技术，类似于内存中有一个flag，如果为0，则设置为1，否则，不用改变。([CAS](https://www.jianshu.com/p/ab2c8fce878b))
 
+## 
