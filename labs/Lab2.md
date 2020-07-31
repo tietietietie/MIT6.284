@@ -32,11 +32,60 @@ Raft便是保证log一致性的算法。
 * Leader:处理所有来自client的请求，负责复制，发放Log，系统中只存在一个。
 * Follower: passive，只会response来自Leader或者candidates的请求
 * Candidate: 候选人，由follower转换而成，调用”收集选票"RPC
-* Term: 标志着“任期”，是随时间连续增长的整数，如果follower发现其term过小，则增大term，如果candidate或者leader发现其term过小（失效），则立刻变为follower
+* Term: 标志着“任期”，是随选举次数不断增长的整数，如果follower发现其term过小，则增大term，如果candidate或者leader发现其term过小（失效），则立刻变为follower
 
 接下来分“选举”，“log复制"，"安全性”三部分讨论实现细节。
+
+### Leader Selection
+
+Follower：如果在一段时间（election timeout）没有收到RPC请求，则开始一段新的选举，并把自己当作候选人。
+
+* 注意每个follower的timeout时间不一样（随机化），以保证不会有很多follower同时变为candidate，同时也保证新的leader能及时发送heartbeat
+
+Candidate：follower增加term，进入新的选举周期，并把自己的状态改为candidate，并向其他服务器发送RequestVote请求。以下三种情况，candidate会发生状态转变
+
+* canditate获得大部分选票（每个server按照先来后到的顺序，在一个选期（term）内进行唯一的一次投票），一旦成为leader，立刻向其余server发送心跳
+* candidate收到了来自其余server的心跳，并在同一term，则自动变为follower。如果是过期的term，则忽略。
+* 如果没有leader选出来，则自动开始下一轮拉票。（所有canditate的失效时间不同，大多数情况下，只有一个candidate先发生timeout，开始下一轮竞选，此时他会胜出并）
+
+
 
 ## Lab2A
 
 目标：完成src/raft.go代码，实现选举single leader的功能。
+
+待实现代码：
+
+* RequestVoteArgs和RequestVoteReply的结构体
+* 修改make()，能够阶段性的发送RequestVote RPC ？？
+* 设置election timeout保证能在5秒内进行多次election （但是要大于300ms）
+* 实现GetState()
+* 实现DPrintf，进行debug
+
+### 参考建议
+
+#### Locking advice
+
+* 变量被多个goroutine使用，必须加锁。
+* 对一系列修改变量的操作进行统一，防止歧义。（如下，如果分开加锁或者对state不加锁，可能会造成curTerm和state不统一）
+
+```go
+  rf.mu.Lock()
+  rf.currentTerm += 1
+  rf.state = Candidate
+  rf.mu.Unlock()
+```
+
+* 读取共享变量也有可能要加锁（如下，如果不对if语句加锁，在if执行完后，另一routinue操作curTerm使他变大,最终可能会造成curTerm减小）
+
+```go
+  rf.mu.Lock()
+  if args.Term > rf.currentTerm {
+   rf.currentTerm = args.Term
+  }
+  rf.mu.Unlock()
+```
+
+* 对需要等待的代码谨慎加锁，防止死锁。比如不必对RPC调用加锁。
+* 
 
