@@ -86,6 +86,25 @@ Candidate：follower增加term，进入新的选举周期，并把自己的状�
   rf.mu.Unlock()
 ```
 
-* 对需要等待的代码谨慎加锁，防止死锁。比如不必对RPC调用加锁。
-* 
+* 对需要等待的代码**谨慎加锁**，防止死锁。比如不必对RPC调用加锁。
+* 总结：对于没有并发同步的变量不必加锁，对于有同步的变量，在go routine开始时加锁，结束时释放锁（暴力直接的方法）。对于需要等待的代码位置，谨慎加锁。
 
+#### Raft Structure Advice
+
+* 使用共享变量和锁来更新raft instance的状态（log, current index, &c)
+* 将发送心跳（leader）以及进行选举（waited followers)的go routine分开写
+* 把最近一次收到log的时间保存在state中，使用time.sleep周期性的检查时间间隔，以决定是否发生新一轮选举
+* 使用Go的sync.Cond来出发一个单一的长期运行的goroutine
+* 每一个RPC请求最好在各自的goroutine中发送，为了保证无法到达的raft设备不会延误大多数设备的请求收集工作，也为了保证发送的timer能够不断的运行
+* 注意由于网络原因，你发送的RPC顺序不会有啥参考价值，leader必须检查reply中的term有没有改变，并且保证nextIndex相同（因为可能发送多条重复RPC？漏包？）
+
+### Code
+
+先整体看下大致结构，其中lab 2A需要完成以下工作：
+
+* 定义部分的raft state，包括currentTerm, voteFor, leader.
+* 实现GetState()（获得当前raft的状态，包括curTerm和isLeader）
+* 实现RequestVoteArgs和RequestVoteReply结构体（请求投票RPC的参数及返回体）
+  * Args
+    * term：候选人当前的选举周期
+    * 
