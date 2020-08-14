@@ -6,11 +6,11 @@
 
 使用Map和reduce函数，对数据进行拆分和合并。（使用中间值键值对在两函数间传递数据）
 
-![image-20200606084942827](C:\Users\zhang\AppData\Roaming\Typora\typora-user-images\image-20200606084942827.png)
+![image-20200811211230042](Lecture01-02.assets/image-20200811211230042.png)
 
 ### **执行流程：**
 
-![image-20200606085135161](C:\Users\zhang\AppData\Roaming\Typora\typora-user-images\image-20200606085135161.png)
+![image-20200811211255730](Lecture01-02.assets/image-20200811211255730.png)
 
 1，将文件分割成M份（区域性优化，worker1会优先在存储着split1的主机上运行，一般为16~64MB一份）
 

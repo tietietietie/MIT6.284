@@ -176,6 +176,9 @@ Candidate：follower增加term，进入新的选举周期，并把自己的状�
 
 ![image-20200811171632687](D:\OneDrive\Study\CS\MIT6.824\labs\Lab2.assets\image-20200811171632687.png)
 
+#### 细节修改
+* 每次过期后，需要重新选一个随机过期时间
+
 ### 总结
 
 多利用DPrintf，在疑似bug的地方把状态打印出来。
