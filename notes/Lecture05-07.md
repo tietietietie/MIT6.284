@@ -182,7 +182,26 @@ func main() {
 	<-c
 }
 ```
-# Lecture06 Fault Tolerance - Raft
+# Lecture06-07 Fault Tolerance - Raft
+## Preperation(paper)
+### Log复制
+* 一次顺利的log复制流程
+leader收到client请求 ---> leader在自己的log上添加一项新entry ---> 向follower发送AppendEntry ---> entry被成功复制到大部分的follower ---> leader执行这项entry，并将结果返回给client
+* Entry = 状态机一次操作 + term + index
+* 能够被安全执行的entry称为commited, leader会保存最高commited entry索引并发送给followers，这样其余server就知道哪些entry是可以执行的了。
+* Entry性质：term + index相同的两个entry，他们的内容是一样的,并且他们之前的entry都是一样的。如何保证：leader在某一term下的某一log index，最多创建一条entry，并且在发送AppendEntries时，会检查follower的最近index + term是否与自己相同。
+* 如何处理不一致的follower：leader会强制follower复制自己的log（不一样的log会被改写），leader会找到follower的最新的一致节点，把该点后面的entry都删除，然后把自己的log复制上去。（如何找到点：nextIndex[]中数字不断减一)
+* leader永远不会删除或者修改自己的log entry！！
+### 安全性
+上述log复制策略并不能保证状态一致性，一种可能的情况：失联follower成为leader，会对之前term的commited log进行覆盖。如何保证新当选的leader保存有所有的commited entries呢？
+* 选举限制：candidate的log在其他server中是最新的？
+* 提交之前term的log：在新的term中，不会利用count副本来提交旧log，只有当前term的log会通过计数的方式提交。
+* 安全性证明(反证法)：假设当前leader U中，不存在old term log(term T) ---> 必存在一个server，同时接收了这个缺失的log，并且投票给了U ---> voter在投票的时候，一定存储着这个log ---> voter和leader U的log必须是up-to-date的 ---> 此时造成冲突
+* Follower和candidate的失效处理方式：不断的发送request，直到有响应为止。
+### Log压缩
+压缩办法：快照
+快照内容：最后inclued log的term和index,以及状态机的状态
+快照方法：每个server都可以独立的创建自己的快照，如果follower落后太多，leader也会发送InstallSnapshot请求，来修改follower的log
 ## Video
 在repication system中，可能会有一个单节点，在做重要决策，此时有必要防止单点故障。
 **脑裂**：client不会同时请求两个server ---> client请求多个replicated server的一个 ---> 网络故障，两个client分别修改不同server的值，而值没有同步 ---> 脑裂
