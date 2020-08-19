@@ -224,3 +224,4 @@ start(command)(index, term ):准备将该请求发送给各个server，当start�
 * leader的选择更加谨慎
 * Fast backup
 * 根据persist的要求，你必须先把persist的内容如Log写到硬盘，然后再发送rpc
+* 线性一致性：执行顺序是线性的。如果操作的执行顺序和非并发的真实操作是匹配的？（没有听懂）
