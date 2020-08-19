@@ -182,3 +182,18 @@ Candidate：follower增加term，进入新的选举周期，并把自己的状�
 ### 总结
 
 多利用DPrintf，在疑似bug的地方把状态打印出来。
+
+## Lab2B
+
+### 设计目标
+* 实现Start()：使用Raft()的service使用此函数传递命令给leader
+* 实现AppendEntries()，发送和接收新的log
+* 添加election限制条件
+
+### 待完成代码
+* 完成logEntry的定义：logEntry包括三个值：term, index, command
+* 补充raft server的状态：commitIndex：已经提交的最高index， lastApplied：已经执行的最高index， nextIndex[]：表示每个follower当前发送的log index, matchIndex[]：表示已知的每个follower已经复制好的最高log index
+* 添加election的限制条件：比较lastLogIndex和lastLogTerm，如果log不满足up-to-date,则不会投票给他
+* 完成AppendEntries()的args和reply：
+* 完成AppendEntries的handler代码：
+收到client请求 ---> 添加到自己的log[] ---> 并发的向其余follower发送副本，直到大多数follower返回true ---> commitIndex
