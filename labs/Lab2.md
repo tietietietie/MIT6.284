@@ -178,6 +178,7 @@ Candidate：follower增加term，进入新的选举周期，并把自己的状�
 
 #### 细节修改
 * 每次过期后，需要重新选一个随机过期时间
+* 只有在接收到AppendEntries或者**同意投票**后，才会重置lastRequestTime
 
 ### 总结
 
@@ -196,4 +197,26 @@ Candidate：follower增加term，进入新的选举周期，并把自己的状�
 * 添加election的限制条件：比较lastLogIndex和lastLogTerm，如果log不满足up-to-date,则不会投票给他
 * 完成AppendEntries()的args和reply：
 * 完成AppendEntries的handler代码：
-收到client请求 ---> 添加到自己的log[] ---> 并发的向其余follower发送副本，直到大多数follower返回true ---> commitIndex
+leader:
+收到client请求 ---> 添加到自己的log[] ---> 并发的向其余follower发送副本，直到大多数follower返回true ---> commitIndex + 1, lastApplied + 1
+follower:
+收到AppendEntries RPC ---> 比较term ---> 找到preLogIndex和preLogTerm的entry(否则返回false) ---> 存在冲突的entry，则删除此entry以及后面所有的entry ---> 更新commitIndex（根据leaderCommit和最新的entry index）
+所有server:
+每次commitIndex修改之后，需要比较commitIndex和lastApplied
+commitIndex：
+对于leader,只有收到了大部分follower的肯定，commitIndex才会加1，对于follower，他无法判断哪些log是commited，只有通过比较leaderCommit来更新
+matchIndex:
+表示这个follower从这个Index及之前，log都是相同的
+nextIndex:
+表示将要发送给这个follower的下一个index
+会出现leader产生后，其commitIndex + 1也就是待提交的entry属于上一term，此时leader无法判断是否已经复制完成，但是raft不会去管这部分信息，而是先提交新term的appendEntris，来间接处理（便于立刻更新follower的lastTerm)
+
+### 代码
+* 定义logEntry结构体
+* 补充raft状态
+* 增加election限制条件: 修改RequestVote args和handler
+* 完成AppendEntries()
+  * 完成args和reply
+  * handler：
+* 修改heartBeat
+* 处理command流程：判断接收者是否为leader ---> 是leader，接受这个command，并产生entry，添加在leader log的后面 ---> 更新nextIndex[] ---> （并发)根据nextIndex向follower发送数据 ---> 返回false, 修改args ---> 返回true,修改nextIndex和matchIndex, ---> 统计matchIndex，更新leader的commmitIndex
