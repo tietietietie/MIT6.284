@@ -178,7 +178,7 @@ Candidate：follower增加term，进入新的选举周期，并把自己的状�
 
 #### 细节修改
 * 每次过期后，需要重新选一个随机过期时间
-* 只有在接收到AppendEntries或者**同意投票**后，才会重置lastRequestTime
+* 只有在接收到AppendEntries或者**同意投票**后，才会重置astRequestTime
 
 ### 总结
 
@@ -217,6 +217,9 @@ nextIndex:
 * 增加election限制条件: 修改RequestVote args和handler
 * 完成AppendEntries()
   * 完成args和reply
-  * handler：
+  * handler：判断term ---> 判断是否为心跳 ---> 判断prev是否存在（不存在，false,nextIndex = lastLogIndex + 1) ---> 判断term是否相同，相同，则添加entries，true, nextLogIndex = lastLogIndex + 1 ---> 没有匹配上，false， nextIndex指向这个term的第一个index（或者committedIndex + 1）位置
 * 修改heartBeat
-* 处理command流程：判断接收者是否为leader ---> 是leader，接受这个command，并产生entry，添加在leader log的后面 ---> 更新nextIndex[] ---> （并发)根据nextIndex向follower发送数据 ---> 返回false, 修改args ---> 返回true,修改nextIndex和matchIndex, ---> 统计matchIndex，更新leader的commmitIndex
+* 处理command流程,即完成start函数：判断接收者是否为leader ---> 是leader，接受这个command，并产生entry，添加在leader log的后面
+* 添加entries流程（选举为leader后就启动）（周期性检查添加,150ms） 判断nextIndex与lastLogIndex的关系，满足nextIndex <= lastLogIndex则添加 ---> 启动对应的sendAppendEntries,并启动计时器（100ms) ---> 构造args和reply ---> 如果超时，退出，如果收到reply，则判断 ---> true ? 更新nextIndex和matchedIndex : 更新nextIndex = reply.Index  ---> 150ms后，更新commitedIndex
+* elction时，需要重置nextIndex和matchedIndex
+* 
