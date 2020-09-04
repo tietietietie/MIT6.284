@@ -229,3 +229,10 @@ nextIndex:
 * applyCh：在commitIndex更新的地方使用（改完这个后终于通过了两个test）（打死不看注释系列）
 * 修改HeartBeat机制，不能对HeartBeat特殊对待，也要对PrevLogTerm和PrevLogIndex进行检查。
 * 修改for - sleep结构为timer结构
+> Test (2B): no agreement if too many followers disconnect ...
+panic: runtime error: index out of range [2] with length 2
+
+goroutine 5004 [running]:
+_/home/zhangtie/MIT6.824-Labs/src/raft.(*Raft).AppendEntries(0xc00026a700, 0xc0007f0e40, 0xc00042cc20)
+        /home/zhangtie/MIT6.824-Labs/src/raft/raft.go:240 +0x554
+越界错误：
