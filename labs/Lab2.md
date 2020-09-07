@@ -219,6 +219,7 @@ nextIndex:
   * 完成args和reply
   * handler：判断term ---> 判断是否为心跳 ---> 判断prev是否存在（不存在，false,nextIndex = lastLogIndex + 1) ---> 判断term是否相同，相同，则添加entries，true, nextLogIndex = lastLogIndex + 1 ---> 没有匹配上，false， nextIndex指向这个term的第一个index（或者committedIndex + 1）位置
 * 修改heartBeat
+* 
 * 处理command流程,即完成start函数：判断接收者是否为leader ---> 是leader，接受这个command，并产生entry，添加在leader log的后面
 * 添加entries流程（选举为leader后就启动）（周期性检查添加,150ms） 判断nextIndex与lastLogIndex的关系，满足nextIndex <= lastLogIndex则添加 ---> 启动对应的sendAppendEntries,并启动计时器（100ms) ---> 构造args和reply ---> 如果超时，退出，如果收到reply，则判断 ---> true ? 更新nextIndex和matchedIndex : 更新nextIndex = reply.Index  ---> 150ms后，更新commitedIndex
 * elction时，需要重置nextIndex和matchedIndex
@@ -235,4 +236,6 @@ panic: runtime error: index out of range [2] with length 2
 goroutine 5004 [running]:
 _/home/zhangtie/MIT6.824-Labs/src/raft.(*Raft).AppendEntries(0xc00026a700, 0xc0007f0e40, 0xc00042cc20)
         /home/zhangtie/MIT6.824-Labs/src/raft/raft.go:240 +0x554
-越界错误：
+越界错误
+* 出现同一term两个leader问题：因为count默认设置为了1
+* 出现RPC过多问题：
