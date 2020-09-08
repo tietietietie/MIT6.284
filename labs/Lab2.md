@@ -238,4 +238,7 @@ _/home/zhangtie/MIT6.824-Labs/src/raft.(*Raft).AppendEntries(0xc00026a700, 0xc00
         /home/zhangtie/MIT6.824-Labs/src/raft/raft.go:240 +0x554
 越界错误
 * 出现同一term两个leader问题：因为count默认设置为了1
-* 出现RPC过多问题：
+* 出现RPC过多问题：初始化server后，会出现过多的rpc
+  解决办法：heartbeat间隔过短，从10ms设置为100ms
+
+最终Lab2B实验通过
