@@ -89,6 +89,32 @@ ZooKeeper 底层其实只提供了两个功能：① 管理（存储、读取）
 
 Linearizable writes : 
 
-可线性化定义：可线性化是指所有操作必须满足真实发生的顺序，且读到的数据是最新写入的数据。
+可线性化定义：可线性化是指所有操作必须满足真实发生的顺序，且读到的数据是最新写入的数据。用户端的操作历史是可线性化的，则说明了server提供了正确的服务。
+
+可线性化大致等同于该server系统类似单个服务器。 
+
+可线性化用于定义正确性。
+
+client end history（客户端看到的操作顺序）
 
 ![image-20200909210703491](Lecture08-09.assets/image-20200909210703491.png)
+
+## Video:zookeeper
+
+### 从副机“读”数据会出现什么问题？
+
+可能会读到过期的数据（因为不能保证这个副机是up-to-date的），raft和lab3b，是不允许client在replica读数据的，但是zookeeper为了read性能，允许client读到过时的数据。
+
+zookeeper如何保证不读到过期数据，阻塞client的read操作，直到read之前的writes都执行完成，或者使用sync()命令
+
+### Test-and-Set服务器
+
+保证不会出现脑裂，因为只有一台机器能够修改成功。
+
+### Zookeeper的成功之处
+
+* 提供少量原语，用户能够自定义原语
+
+### Server如何处理重复请求
+
+维护一个table，如果发现某请求ID的结果已经在表中（已经被执行），则不回执行resent request，而是直接返回表中结果。
