@@ -118,3 +118,30 @@ zookeeper如何保证不读到过期数据，阻塞client的read操作，直到r
 ### Server如何处理重复请求
 
 维护一个table，如果发现某请求ID的结果已经在表中（已经被执行），则不回执行resent request，而是直接返回表中结果。
+
+### Wait-free和Lock-free
+
+lock-free指系统中没有锁，绝大部分进程在能够在有限步骤内执行这个方法，只有极少数的进程可能一直没法取得进展。而wait-free保证了所有进程都能在有限步骤内取得进展。
+
+wait-free意思就是字面上的意思，任意线程的操作都可以在有限时间（步数）完成。相反一般人会从字面理解lock-free却是是错误的。lock-free是指系统中所有线程中至少有一个可以完成其操作，其实际上对应字面应该是lockup-free，即系统整体上始终是不断推进，而不会陷入一种锁定的状态。看得出来，wait-free也满足lock-free，它是更强（最强）的进度保证。
+
+### Transaction(事务)
+
+事务是一系列操作，这些操作组成了一个逻辑工作单元。这个逻辑工作单元中的操作作为一个整体，要么全部成功，要么全部失败。失败就回到事务操作前的位置。
+
+### Zab
+
+和raft类似，运行在zookeeper服务器底下。
+
+zookeeper集群的服务器越多，速度会越低，因为请求只经过leader处理（如果按lab2/3实现zookeeper的话）
+
+但是真实的zookeeper中，允许replica来执行read请求，所以会出现过期处理。
+
+Zookeeper Guarantee
+
+* 可线性化的写：与之前的可线性化不同，表示zookeeper系统能够对并发的写入操作能够顺序执行。
+* FIFO：对于用户的异步写入，zookeeper能够保证写入能够按照用户的顺序执行。对于用户的读操作，保证用户的当前read在replica的Log[i]状态，那么之后的read，一定在>=i的log[j]状态（即使在replica切换时也保证）（通过zxid，类似于lab2的index）
+* FIFO的另一个重要特性：对于单一client的read，它一定会在之前它提交的write操作执行完后，再执行。
+
+
+
