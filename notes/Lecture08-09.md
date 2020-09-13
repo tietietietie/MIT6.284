@@ -147,3 +147,21 @@ Zookeeper Guarantee
 
 2， 用zookeeper协调分布式系统配置文件的更新（master通过ready znode，和watch机制，保证follower读取数据的完整性）参考[这里](https://zhuanlan.zhihu.com/p/215451863)（在READ f2之前，replica一定会发送通知） 
 
+# Lecture09
+
+## Paper:CRAQ
+
+* CRAQ：使用分摊序列的链状复制节点
+* 特点：保证强一致性，但是显著提高了读取性能。同时支持event consistency（更好的提高性能）
+* 普通的chain replication：也是强一致性，写数据在chain head, 读数据在chail tail,缺点
+  * read hotspot（因为所有的read会集中在chain tail)
+  * 多条chain时，会出现负载不平衡
+* CRAQ的读写过程
+  * node可能存储着多个版本的值，最新版本可能是clean或者dirty，初始化的第一个版本是clean
+  * 当head node收到write请求，依次向后传播，每一个节点把新版本值存下来，标记为dirty。
+  * 传播到tail node后，此次write commited，tail node向其余节点发送ackownledge request，其余节点的version变为clean，之前version被删除
+  * 如果在write传播过程中，有read请求，version为clean直接返回，不是clean，则向tail请求last commited version number，并返回此version的值（该操作能保证strong consistency）（可以看成read操作在tail node线性化）
+* CRAQ比CR快的原因：
+  * CRAQ中间节点也能处理read，显然快。
+  * tail节点的负载变轻了，只用发送小负载的ack request
+* 
