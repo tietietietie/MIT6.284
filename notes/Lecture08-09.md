@@ -141,7 +141,9 @@ Zookeeper Guarantee
 
 * 可线性化的写：与之前的可线性化不同，表示zookeeper系统能够对并发的写入操作能够顺序执行。
 * FIFO：对于用户的异步写入，zookeeper能够保证写入能够按照用户的顺序执行。对于用户的读操作，保证用户的当前read在replica的Log[i]状态，那么之后的read，一定在>=i的log[j]状态（即使在replica切换时也保证）（通过zxid，类似于lab2的index）
-* FIFO的另一个重要特性：对于单一client的read，它一定会在之前它提交的write操作执行完后，再执行。
+* FIFO的另一个重要特性：对于**单一**client的read，它一定会在之前它提交的write操作执行完后，再执行。但是用户Awrite13，用户B之后不一定会读到13（只针对单一用户）（对单一用户是linearazible) 
 
+1， 如何保证读到最新数据：sync()，类似于write
 
+2， 用zookeeper协调分布式系统配置文件的更新（master通过ready znode，和watch机制，保证follower读取数据的完整性）参考[这里](https://zhuanlan.zhihu.com/p/215451863)（在READ f2之前，replica一定会发送通知） 
 
