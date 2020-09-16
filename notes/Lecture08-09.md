@@ -107,13 +107,73 @@ client end history（客户端看到的操作顺序）
 
 zookeeper如何保证不读到过期数据，阻塞client的read操作，直到read之前的writes都执行完成，或者使用sync()命令
 
+### 什么是zookeeper
+
+类似于一个文件系统，如果运行多个分布式应用，我们可以开一个zookeeper集群，来协调这些不同的应用。
+
 ### Test-and-Set服务器
 
 保证不会出现脑裂，因为只有一台机器能够修改成功。
 
+### Zookeeper典型应用
+
+* TEST-AND-SET
+* 分布式集群的配置信息
+* master election
+* Lock(使用create和delete原语就可以实现 )
+
 ### Zookeeper的成功之处
 
-* 提供少量原语，用户能够自定义原语
+* 提供少量原语API，用户能够自定义原语
+* mini-transation
+
+### Zookeeper原语
+
+create(path, data, flag) （exclusive）
+
+delete(path, version(zxid))
+
+exist(path, watch)(atomic)
+
+getdata(path, watch)
+
+setdata(path, data, version)
+
+watch的设置跟原语是一起的，atmoic的
+
+### zookeeper应用
+
+如何保证**原子性**的对value x加一
+
+while true
+
+​	x, v = getdata("f")
+
+​	if setdata("f", x+1, v)
+
+​		break
+
+类似于cas，必须version匹配
+
+如果1000个用户同时增加x（herd effect)，则只会有一个成功，server会收到大量请求，如何改进？
+
+* 随机sleep time
+* lock without herd effect
+
+lock without herd effect
+
+  1. create a "sequential" file
+  2. list files
+  3. if no lower-numbered, lock is acquired!
+  4. if exists(next-lower-numbered, watch=true)
+  5.   wait for event...
+  6. goto 2
+
+优势：每个client等待前一个client释放锁，不会死锁，因为前一个client宕机，zookeeper会释放锁。
+
+可能问题：不能保证前一个client任务一定完成。也就是说不能保证原子性
+
+和go的thread fail不同，thread fail后，锁就永远不回释放了？
 
 ### Server如何处理重复请求
 
@@ -145,7 +205,7 @@ Zookeeper Guarantee
 
 1， 如何保证读到最新数据：sync()，类似于write
 
-2， 用zookeeper协调分布式系统配置文件的更新（master通过ready znode，和watch机制，保证follower读取数据的完整性）参考[这里](https://zhuanlan.zhihu.com/p/215451863)（在READ f2之前，replica一定会发送通知） 
+2， 用zookeeper协调分布式系统配置文件的更新（master通过ready znode，和watch机制，保证follower读取数据的完整性）参考[这里](https://zhuanlan.zhihu.com/p/215451863)（在READ f2成功之前，replica一定会发送通知） 
 
 # Lecture09
 
@@ -153,7 +213,7 @@ Zookeeper Guarantee
 
 * CRAQ：使用分摊序列的链状复制节点
 * 特点：保证强一致性，但是显著提高了读取性能。同时支持event consistency（更好的提高性能）
-* 普通的chain replication：也是强一致性，写数据在chain head, 读数据在chail tail,缺点
+* 普通的chain replication：也是强一致性，写数据从chain head传到tail，从tail response此次write, 读数据在chail tail,缺点
   * read hotspot（因为所有的read会集中在chain tail)
   * 多条chain时，会出现负载不平衡
 * CRAQ的读写过程
