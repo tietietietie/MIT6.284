@@ -225,3 +225,9 @@ Zookeeper Guarantee
   * CRAQ中间节点也能处理read，显然快。
   * tail节点的负载变轻了，只用发送小负载的ack request
 * 
+
+### Video
+
+* 和raft区别很大，用的chain结构
+* craq不用担心脑裂等情况，因为一般不会单独使用，会有第三方如zookeeper来管理配置文件
+* 缺点：性能 = 最低性能的节点，也受限于距离（different data center) 
