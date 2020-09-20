@@ -82,9 +82,17 @@ consistency/performance spectrum
 
 ### MapReduce
 
-
+设计目的：应用程序设计人员只需要写简单的map函数和reduce函数
 
 MapReduce: Job = MapTasks + Reduce Tasks
+
+**Map函数**：对于多个输入（可能是大文件拆分？），调用一系列的map函数，分别执行每个输入（图中的split i)，每个map函数都会产生一系列的key-value数据，存放在中间.map(key. value),其中key为文件名，value为文件内容。
+
+**Reduce函数**：对于产生的中间键值对，进行统计；如reduce(key, value),其中key为要统计的key，value为key在中间文件中出现的频数数组，如(1,1,1,1,1),可以key出现了5次。
+
+**Reduce Woker细节**：master命令了n个woker对n份split文件进行map操作后，woker会在**本地磁盘**产生大量的key-value中间键值对，之后执行reduce任务的woker，需要收集各个woker本次磁盘上，某个key的数据，收集完成并且reduce后，将文件emit到**GFS**
+
+**减少网络带宽**：一个10TB的大文件存储在GFS集群上，如果每个master worker需要把自己的split读出来，显然会产生大量的网络通讯。paper中的优化方法是，GFS和MapReduce都运行在一个网络集群上，master分配map任务时，会优先把任务split i分配给存储着split i的服务器。
 
 可以使用流来优化reduce，而不是必须等待全部数据收集完成，才执行reduce函数
 

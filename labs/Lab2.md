@@ -242,3 +242,25 @@ _/home/zhangtie/MIT6.824-Labs/src/raft.(*Raft).AppendEntries(0xc00026a700, 0xc00
   解决办法：heartbeat间隔过短，从10ms设置为100ms
 
 最终Lab2B实验通过
+
+## Lab2C
+
+* 确定哪些状态是需要persist的：currentTerm/votedFor/log[]
+* 实现readPersist/persist
+* 确定哪些地方需要调用persist
+
+修Bug，nextIndex没有设置好：
+
+![image-20200919205544050](Lab2.assets/image-20200919205544050.png)
+
+### 修bug
+
+1，more persistency失败：因为encode的顺序和decode的顺序不一致，导致readPersist()时rf.term的错误
+
+2，修改voteFor重置的条件：args.term > rf.term时重置，不能是>=
+
+3，修改commitedIndex的更新条件，必须是对当前leader的term的index进行计数更新，不能对old term的log entry进行计数更新，理由如下：
+
+如果leader1当前term为4，且还没有收到entry，此时发现log中有old entry（term = 2)没有commit，对其复制并更新后后，大部分的server有了old log(term = 2)，此时处于少部分的server2（old log的term是3）选举为leader，它显然会把之前的term为2的old entry覆盖，对已经commit的entry覆盖显然是不允许的，从而发生错误。
+
+解决办法：新的leader不会对log中的old entry进行计数commit，而是通过对本次term的entry进行计数commit，隐式的commit之前的entry，这样leader1会在新的entry来到后，再commit，保证大部分server的lastLogEntryTerm为4，从而server2不会被选为leader，避免错误发生。
