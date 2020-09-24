@@ -46,5 +46,88 @@ Quorum机制：设有N个副本，写操作要在W个副本上成功，读操作
 * 一般设计数据库时，数据库系统和存储系统是分开的，为了低耦合，为了通用的存储系统，但在这篇论文中，模糊了上层系统和底层存储的界限，使性能大幅度提高了
 * 云基础架构需要考虑的一些问题：整个AZ失效，出现短暂的慢副本（导致同步变慢），网络成为了瓶颈，所以降低了传输的数据量（只传log），但是相应增加了CPU计算量（需要计算6次），但显然在亚马逊看来，network负载比cpu计算量重要的多。
 
+# Lecture11
+## Paper:Frangipani: A Scalable Distributed File System
+* 什么是Frangipani：分布式文件系统，运行在虚拟磁盘（远程）(分布式存储系统)Petal之上，可用性可扩展性较好。
+* 结构：两层，底层是Petal，上层是运行着Frangipani文件系统的server
+* ### 问题引入
+
+**Frangipani server读写文件的策略**：使用缓存，每个workstation（WS）都有本地的缓存，且写回策略使write-back，即需要时写回。
+
+**多WS读写文件存在的问题**
+
+* WS1在缓存中修改或新增了一项文件grade entry，但是WS2在write back前读取不到这个文件。（cache coherency)
+* 原子性文件，WS1和WS2同时修改或者在某一目录下新增路径，可能会造成冲突（相互覆盖）（atomicity)
+* WS1在write back文件时crash了，如何保证别的WS不会看到不完整或者不合理的数据（crash recovery)
+
+### 解决办法
+
+**cache coherency**:使用分布式锁服务，提供文件全局管理（lock server ls)，原则是cache data前，必须在ls获得对应文件的锁，从petal读取相应数据，也需要获得锁，释放锁之前，需要write-back dirty page。流程如下：
+
+1.WS1需要cache文件a，向ls发送锁请求，想获得对应锁
+
+2.ls如果发现这么锁没有被占用（或者被占用但是***空闲（idle)***)，ls把锁分配给WS1
+
+3.WS1获得锁后，把文件a缓存，可对其进行修改，暂时不需要释放锁，也不许write-back
+
+4.WS2想要读写文件a，向ls发送锁请求
+
+5.LS查看对应的锁是否被占用并且其状态是idle，如果lock处于这个状态，则LS要求WS1释放锁（revoke）
+
+6.WS1先write-back，然后实放锁
+
+7.WS2获得锁，也可获得更新后的数据。
+
+**Atomoicity**:进行一项事务前，必须先获得该事务涉及资源的**所有锁**。
+
+**Crash Recovery**:类似于WAL，本地的WS中会存在日志条目，记录每次修改metadata的log，只有Log传输到Patal后，才会修改真正的metaData。这样，如果WS在持有锁的时候crash了，Petal（或者另一个想要获得这个锁的WS），会执行log来恢复crashed WS的数据。
+
+### 其他
+
+* Frangipani是强一致（strong consistency)且用户无感知的（运行在**kernel层**）
+* Frangipani是没有很复杂的admin level，每个WS都可以修改文件？
+* Log有版本号，每次实放锁，版本号+1， 只有当版本号和log相同，说明上一次获得锁的WS crash了，此时replay log是有效的
+* WS的高速缓存中，会出现日志填满的情况，此时需要把日志发送给Petal？
+* 可以在不停机的情况下备份？？？why
+  
+## video：
+
+Petal:virtual disk.
+
+设计目的：小型的组织的共享文件系统，各用户对其他人操作可见，且组织互相信任。
+
+为什么速度快：用户的大多数操作只针对自己的文件，其他人不需要看见，不需要经常write-back
+
+为什么可扩展：文件系统的**去中心化**，没有一个central server，每个WS都有一个相同的Frangipani Server
+
+Lock server：保存有file name < --- > owner的lock表项，同时WS中的Frangipani server中也保存着filename <---> lock(state) <---> content表项，其中state有两种状态：busy/idle，如果对应content没有被system call，则是空闲的（但是也不会被LS收走lock)
+
+Rules: 1,WS中cache的每一项data，都必须有lock. 2,先得到锁，才能从Petal读数据。 3，先写数据到Petal，才能释放锁。
+
+![image-20200924202725753](Lecture10-11.assets/image-20200924202725753.png)
+
+如果WS存储了很重要的数据，但是没有任何人想要读它，它就会一直存储在WS的cache中吗？不会，WS会周期性的write-back。
+
+Crash Recovery:如果持有锁的Server crashed，那么可能会造成Petal有不完整的数据，此时不应该立刻释放锁（不然其他的WS会读到这些数据），而是尽可能的恢复成完整数据。Frangipani使用WAL策略。WS的app试图修改数据，Frangipani server会先把log发送给Petal，然后进行修改，从而保证了app看到了修改后的数据时，log一定时存放在server上。
+
+Frangipani log的特殊之处：
+
+1，每一个WS都有自己的log（不像普通的tranzaction system，单一的一条Log）
+
+2，每个WS的log不存在WS本地，而是放在Petal的WS专属区域。
+
+Log组成：LSN：log序号号。array：petal number/ version number/ data(只涉及metaData，就是有关目录的data，而不涉及文件内容)
+
+revoke操作流程：必须先write log（整个log)。然后write-back dirty page，然后release lock。注意log发送成功后，才会更新log
+
+怎么检测WS crashed？必须有另一个WS需要一个锁，使LS调用invoke函数超时，确定WS crashed，这个需要锁的WS会去执行相应的log。
+
+如果WS只写入了部分log就crash了？会reply一些已经完整的log，而丢弃未完成的log(整件事情的目的就是不能有不完整的数据！)
 
 
+
+
+
+## 参考
+https://blog.csdn.net/plm199513100/article/details/108310623
+https://www.jianshu.com/p/b4cbfca809ae
