@@ -124,9 +124,15 @@ revoke操作流程：必须先write log（整个log)。然后write-back dirty pa
 
 如果WS只写入了部分log就crash了？会reply一些已经完整的log，而丢弃未完成的log(整件事情的目的就是不能有不完整的数据！)
 
+在Recovery（Replay)的过程中，如何保证不会对过时的数据进行replay？如下图：
+
+![image-20200925144336351](Lecture10-11.assets/image-20200925144336351.png)
 
 
 
+解决办法：每个file system的matadata都会有version number，每个Log涉及的data也会有一个version number。每次WS修改数据并写入log后，metadata中的VN会加一。所以当要执行log操作时，log中的VN如果小于或者等于patal中的VN，则不会执行。（只会执行 op's VN > petal block VN的Log)。
+
+Recovery的过程中，需要锁吗？不需要，因为修改一个data时，可以保证这个data在WS crash后，没有被修改过（不然VN一定会变大，导致log不会执行）
 
 ## 参考
 https://blog.csdn.net/plm199513100/article/details/108310623
