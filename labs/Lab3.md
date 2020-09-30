@@ -27,13 +27,35 @@
 
 ### 代码
 
-**Clerk Struct**: 包括所有K/V server的地址，以及最新处理完成的opID，以及上次RPC时连接的leaderID，以及锁（保证opID的原子性更新）
+**Clerk Struct**: 包括所有K/V server的地址，以及最新处理完成的opID，以及上次RPC时连接的leaderID，以及锁（保证opID的原子性更新），以及这个clerk所对用的client。
 
-**GetArgs**:除了Key之外，还需要唯一的opID。
+**GetArgs**:除了Key之外，还需要唯一的opID和clientID。
 
-**Get**:第一次尝试连接的serverID初始化为上次RPC成功的leaderID，RPC的timeout时间设置为40ms，根据reply.Err判断是否操作成功。
+**Get**:第一次尝试连接的serverID初始化为上次RPC成功的leaderID，~~RPC的timeout时间设置为40ms~~，根据reply.Err判断是否操作成功。不需要判断RPC是否超时，因为RPC本身能够保证。（通过返回的bool ok）
+
+**PutArgs**：与GetArgs类似。
 
 **AppendPut RPC代码类似**
 
 **KVServer Struct**:定义一个k/value表格（map)
+
+### 修Bug
+
+* 根据打印的日志发现，opID会突然从某个值变为1，而不是预想的一直单调加1
+
+可能会出现多个clerk，此时不能通过单一的opID的增减，来判断是否有重复值，所以增加了ClientID这个变量
+
+* opID不需要每次都加1，随机生成一个值即可
+
+由于在clerk端通过锁，处理完一个op才能处理下一个，只需要保存上次处理opID的值，即可判断是否有重复opID
+
+* opID除了在Get/Append等函数需要判断外，还需要在executeOP()处判断，因为有可能clerk向leader发送了两次同样的op
+* 存在竞争问题：通过引入"github.com/sasha-s/go-deadlock"，发现在Put函数中，执行了kv.Lock()后，会卡在kv.rf.GetState()位置
+
+因为在rf.GetState()中需要rf锁，而rf此时正在rf.applyCh <-位置，需要kv锁，互相等待。
+
+* 需要在Get()/Put()等的无限循环中周期性释放锁，便于lastAppliedOpID[clientID]的更新，以及检查rf（kv.rf.GetState()）
+* 注意一定要在return前面加上rf.mu.Unlock()来释放锁！
+
+
 
