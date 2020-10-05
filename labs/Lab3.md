@@ -56,6 +56,36 @@
 
 * 需要在Get()/Put()等的无限循环中周期性释放锁，便于lastAppliedOpID[clientID]的更新，以及检查rf（kv.rf.GetState()）
 * 注意一定要在return前面加上rf.mu.Unlock()来释放锁！
+* 使用外部库来检测死锁。
 
+## Lab3B: log compaction
 
+### 过程
+
+KVServer检测到maxraftstate小于 persister.RaftStateSize()，生成snapshot  ---> 将snapshot传输给raft，raft根据情况删除logEntries ，并调用persister.SaveStateAndSnapshot()保存snapshot。
+
+### 需要实现的代码
+
+**KVServer部分**
+
+* 在每次执行完applyChan时，检查raft的大小
+* 如果需要saveSnapshot，则生成data(encode之后的bytes类型)（包括了kv表以及client[lastAppliedOpID]），以及进行快照的logIndex，然后调用raft.SavePersistAndSnapshot()
+* 实现ReadPersisit()，在KVServer启动时执行，传入的数据为kv.persister.ReadSnapShot，根据bytes类型的data，对kv表和lastAppliedOpID更新
+
+**Raft部分**
+
+* 当调用raft.SavePersistAndShnapshot()时，需要获得当前raft的state(bytes)，以及snapshot，然后调用persister.SaveStateAndSnapShot()
+* 修改persist(),持久化的state得加上lastSnapshotIndex和lastSnapshotTerm
+* 修改raft struct，加上lastSnapshotIndex和lastSnapshotTerm
+* 修改appendEntries，需要判断args.lastLogIndex和当前raft的lastSnapShotIdnex，如果小于，return false，
+* 修改appendEntries的args.lastLogIndex，不能通过logEntries长度直接获得，得加上lastSnapshotIndex
+* 修改appendEntries的返回，reply.nextIndex可能会小于lastSnapshotIndex，此时调用InstallSnapShot
+* 完成installSnapShot的RPC
+* installSnapShot的时候，不会使logEntries长度为0，从而**总是可以通过访问最后一个元素**的Index和term，得到lastLogIndex lastLogTerm
+
+1）修改struct和persisit()和readPersist()
+
+2）~~添加getLastLogIndexAndTerm()，获得真实的lastIndex和term~~
+
+3）
 
