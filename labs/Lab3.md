@@ -80,12 +80,17 @@ KVServer检测到maxraftstate小于 persister.RaftStateSize()，生成snapshot  
 * 修改appendEntries，需要判断args.lastLogIndex和当前raft的lastSnapShotIdnex，如果小于，return false，
 * 修改appendEntries的args.lastLogIndex，不能通过logEntries长度直接获得，得加上lastSnapshotIndex
 * 修改appendEntries的返回，reply.nextIndex可能会小于lastSnapshotIndex，此时调用InstallSnapShot
-* 完成installSnapShot的RPC
-* installSnapShot的时候，不会使logEntries长度为0，从而**总是可以通过访问最后一个元素**的Index和term，得到lastLogIndex lastLogTerm
+* 完成installSnapShot的RPCg
+* installSnapShot的时候，不会使logEntries长度为0，从而**总是可以通过访问最后一个元素**的Index和term，得到lastLogIndex lastLogTerm,怎么做到？ 自己创建一个新的entry!!
 
 1）修改struct和persisit()和readPersist()
 
 2）~~添加getLastLogIndexAndTerm()，获得真实的lastIndex和term~~
 
-3）
+3）修改logEntries[i]以及通过len(rf.logEntries)-1获得lastLogEntryIndex的位置
 
+4）rf.lastSnapShotIndex的值初始化为-1
+
+5）实现IntallSnapShot RPC
+
+6）
