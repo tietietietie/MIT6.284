@@ -72,6 +72,10 @@ KVServer检测到maxraftstate小于 persister.RaftStateSize()，生成snapshot  
 * 如果需要saveSnapshot，则生成data(encode之后的bytes类型)（包括了kv表以及client[lastAppliedOpID]），以及进行快照的logIndex，然后调用raft.SavePersistAndSnapshot()
 * 实现ReadPersisit()，在KVServer启动时执行，传入的数据为kv.persister.ReadSnapShot，根据bytes类型的data，对kv表和lastAppliedOpID更新
 
+1) 修改ApplyOp, 因为此时得到的applyMsg并不一定包含了op，可能是snapshot的那个entry（增加判断）
+
+2）增加两个方法
+
 **Raft部分**
 
 * 当调用raft.SavePersistAndShnapshot()时，需要获得当前raft的state(bytes)，以及snapshot，然后调用persister.SaveStateAndSnapShot()
