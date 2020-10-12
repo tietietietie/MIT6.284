@@ -76,6 +76,8 @@ KVServer检测到maxraftstate小于 persister.RaftStateSize()，生成snapshot  
 
 2）增加两个方法
 
+3) 在installSnapshot后（无论是自己主动或者是leader要求），当前的server一定会产生一个entry为lastSnapshotIndex，不包含command，这是我们需要利用这个entry，提醒server你的snapshot更新啦，去读取它吧（无法确定是自己生成的snapshot还是安装的leader的）
+
 **Raft部分**
 
 * 当调用raft.SavePersistAndShnapshot()时，需要获得当前raft的state(bytes)，以及snapshot，然后调用persister.SaveStateAndSnapShot()
