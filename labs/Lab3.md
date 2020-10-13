@@ -74,7 +74,7 @@ KVServer检测到maxraftstate小于 persister.RaftStateSize()，生成snapshot  
 
 1) 修改ApplyOp, 因为此时得到的applyMsg并不一定包含了op，可能是snapshot的那个entry（增加判断）
 
-2）增加两个方法
+2）增加两个方法：kv.readPersist() / kv.getPersist(), 需要保存的持久化数据为：dict/lastAppliedOpID
 
 3) 在installSnapshot后（无论是自己主动或者是leader要求），当前的server一定会产生一个entry为lastSnapshotIndex，不包含command，这是我们需要利用这个entry，提醒server你的snapshot更新啦，去读取它吧（无法确定是自己生成的snapshot还是安装的leader的）
 
