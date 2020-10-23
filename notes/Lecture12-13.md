@@ -57,3 +57,68 @@ Commit阶段：TC发现所有TM都是ready状态，则写持久化日志，并�
 Raft和2PC解决的问题不同：
 Raft：解决avaibility，保证一个副本系统，大多数服务器都做相同的事，即便少量服务器宕机也能正常运行
 2PC：解决atomicity,保证一项事务分割在不同的服务器执行时，也能有acid特性。
+
+# Lecture13
+
+## Paper: Spanner
+
+### 一句话总结
+
+Spanner是谷歌提出的**全球范围**的分布式数据库，支持**外部一致性**的分布式事务，通过独特的time API，能够支持lock-free的read-only事务，提高读取数据速度。
+
+待看
+
+
+
+## Video：Spanner
+
+设计目的：实现**全球范围内**的分布式数据库（整个internet)，使得每一个人都能快速的访问到附近的副本，还能保证事务/容错。
+
+基本思想：2PC分布式事务提交 + paxos副本容错 + 校准时间机制提速r/x xactions。
+
+用户请求的强一致性：可序列化
+
+分布式事务的外部一致性：t1 commit之后，t2开始时一定能看到t1造成的修改
+
+服务架构：副本数据分布在全球各地的DataCenter中，同时一份data被切割成多份存储（存储在DC的不同服务器上）（便于同步）
+
+一个Paxos集群管理的一份data切片，所以存在多个Paxos。由于存储在多个DC，用户可以从较近DC读取数据（提高速度）。
+
+由此带来的两个问题：
+
+1，Paxos会导致用户可能读到过期数据。（majority弊端）
+
+2，由于数据分片，导致分布式事务。
+
+### r/w xactions过程
+
+Begin
+
+​	x = x + 1
+
+​	y = y - 1
+
+End
+
+x和y被切片，且都保存有三份副本在DC1, DC2, DC3。x和y都是有paxos leader管理的，有三个副本，但是我们可以看成一个整体。
+
+1，client从两个paxos leader中获得x read-lock, y read-lock
+
+2， 选择一个paxos group作为Transaction coordinater（TC），
+
+3，client发送wx给paxos leader1，并且当paxos的将日志持久化后，回复yes给TC
+
+4，同样将wy发送给paxos leader2, 也回复yes
+
+5，如果都是yes，则TC commit此次事务，并把结果都通过Paxos用日志记录下来，然后将结果告诉给client和其他的paxos leader
+
+6，执行write操作。
+
+2pc Lock保证的可序列化，2pc保证了分布式事务的原子性。
+
+spanner在这里解决了2pc的阻塞问题，因为TC本身是Paxos gruop，同时注意这里实现一次事务需要很多信息传输。
+
+
+
+
+
