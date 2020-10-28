@@ -264,3 +264,4 @@ _/home/zhangtie/MIT6.824-Labs/src/raft.(*Raft).AppendEntries(0xc00026a700, 0xc00
 如果leader1当前term为4，且还没有收到entry，此时发现log中有old entry（term = 2)没有commit，对其复制并更新后后，大部分的server有了old log(term = 2)，此时处于少部分的server2（old log的term是3）选举为leader，它显然会把之前的term为2的old entry覆盖，对已经commit的entry覆盖显然是不允许的，从而发生错误。
 
 解决办法：新的leader不会对log中的old entry进行计数commit，而是通过对本次term的entry进行计数commit，隐式的commit之前的entry，这样leader1会在新的entry来到后，再commit，保证大部分server的lastLogEntryTerm为4，从而server2不会被选为leader，避免错误发生。
+
