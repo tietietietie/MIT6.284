@@ -95,8 +95,16 @@ KVServer检测到maxraftstate小于 persister.RaftStateSize()，生成snapshot  
 
 3）修改logEntries[i]以及通过len(rf.logEntries)-1获得lastLogEntryIndex的位置
 
-4）rf.lastSnapShotIndex的值初始化为-1
+4）rf.lastSnapShotIndex的值初始化为0
 
 5）实现IntallSnapShot RPC
 
-6）
+### 修Bug
+
+1） raft完成一次commit的时间过长，需要使用channel通知，把原raft所有涉及时间的操作几乎都改了一遍。
+
+2）applyCh <- 不能加锁，所以提交ApplyMsg时，先生成一个数组，把要提交的操作先收集起来，释放锁，在一起传给channel
+
+3）同理notifyApplyCh也不能加锁
+
+4）通过报错，修改数组越界的情况，主要是检查index和lastSnapShot的关系，因为重启会使index变小，导致index-lastSnapShot越界。
