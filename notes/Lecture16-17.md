@@ -71,3 +71,23 @@ C1: set(x, 1)  --> memcache
 假设有1000个FE对一个memcache不断进行get请求,此时一个FE修改了该key, 从而删除了该key, 1000个服务器同时向DB查询该key,造成拥堵,memcache从而收到了1000此put(key, v)操作,就算这些值是一样的.
 
 解决办法:第一个发送get并Miss的FE sever会从memcache得到该key的一个Lease, 其余FE则通知等待(10ms后再发送?), 当第一个FE查询到了新的(key,value)后, memcache删除lease并更新数据, 从而999个FE都可以得到数据而不用查询DB了.
+
+### 一致性问题
+
+可能出现一下一致性问题：
+
+c1: get  ---> miss
+
+c1.: get(k) = v1 from DB
+
+c2: set(k, v2)  ---> DB
+
+c2: delete(k) ---> memcache
+
+c1: set(k, v1) ---> memcache
+
+此时memcache中存储的是旧数据，且将不会更新，解决的办法是，在Get()miss后，memcache返回一个lease，c2在delete k后，也会delete lease，c1在set(k, v1)时，发现lease已经失效，则不会在memcache中写入v1
+
+如果delete发生在set(k, v1)后面，则旧数据会在memcache中存在一小段时间（可以接受），但之后会被删除。
+
+cache的作用：1，低延迟。2，屏蔽高负载。
